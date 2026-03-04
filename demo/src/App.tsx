@@ -48,7 +48,17 @@ export function App() {
       <header className="hero">
         <div className="hero-top">
           <div>
-            <p className="eyebrow">React Camera Kit</p>
+            <p className="eyebrow">
+              React Camera Kit
+              <a
+                href="https://github.com/Snapchat/react-camera-kit"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="github-link"
+              >
+                GitHub &rarr;
+              </a>
+            </p>
             <h1>Web Demo</h1>
           </div>
           <nav className="mode-nav" aria-label="Demo mode">

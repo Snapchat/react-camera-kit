@@ -76,6 +76,27 @@ body {
   font-size: clamp(1.6rem, 4.2vw, 2.8rem);
 }
 
+.github-link {
+  margin-left: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  text-decoration: none;
+  background: rgba(19, 33, 58, 0.07);
+  padding: 2px 9px;
+  border-radius: 999px;
+  vertical-align: middle;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.github-link:hover {
+  background: rgba(19, 33, 58, 0.14);
+  color: var(--ink);
+}
+
 .subhead {
   margin: 10px 0 0;
   color: var(--ink-soft);

@@ -108,6 +108,8 @@ npm run clean
 
 ## Demo App
 
+👉 **[Live Demo](https://snapchat.github.io/react-camera-kit/)**
+
 A Vite demo app is available at `demo`.
 
 ```bash

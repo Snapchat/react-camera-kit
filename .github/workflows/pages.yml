@@ -1,0 +1,60 @@
+name: Deploy Demo to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build
+
+      - name: Install demo dependencies
+        run: npm --prefix demo ci
+
+      - name: Build demo
+        run: npm run demo:build
+        env:
+          VITE_CAMERA_KIT_API_TOKEN: ${{ secrets.VITE_CAMERA_KIT_API_TOKEN }}
+          VITE_LENS_ID: ${{ secrets.VITE_LENS_ID }}
+          VITE_LENS_GROUP_ID: ${{ secrets.VITE_LENS_GROUP_ID }}
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: demo/dist
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

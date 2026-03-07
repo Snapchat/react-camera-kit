@@ -1,6 +1,6 @@
 {
   "name": "@snap/react-camera-kit",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "React Camera Kit for web applications",
   "type": "module",
   "main": "./dist/cjs/index.js",

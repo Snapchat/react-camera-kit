@@ -1,8 +1,8 @@
 # @snap/react-camera-kit
 
-React Camera Kit for web applications.
+The official React wrapper for the [Camera Kit Web SDK](https://developers.snap.com/camera-kit/integrate-sdk/web/web-configuration). It provides declarative components and hooks that handle SDK bootstrapping, session lifecycle, media sources, and Lens management — so you can integrate Snap AR into React apps with minimal boilerplate.
 
-**[Live Demo](https://snapchat.github.io/react-camera-kit/)**
+**[Live Demo](https://snapchat.github.io/react-camera-kit/)** · **[Camera Kit Docs](https://developers.snap.com/camera-kit/integrate-sdk/web/guides/react-camera-kit)**
 
 ## Installation
 
@@ -10,107 +10,347 @@ React Camera Kit for web applications.
 npm install @snap/react-camera-kit @snap/camera-kit
 ```
 
-## Prerequisites
+### Requirements
 
-Before using this package, complete Camera Kit Web setup and obtain:
+- `@snap/camera-kit` `^1.13.0` (peer dependency)
+- `react` `>=16.8.0` and `react-dom` `>=16.8.0`
+- `rxjs` `>=7`
+- `https://` for deployed apps (`http://localhost` works for local development)
 
-- `apiToken`
-- `lensId`
-- `lensGroupId`
-- `https://` for deployed apps (`http://localhost` should works for local dev)
+You'll need a Camera Kit API token, Lens ID, and Lens Group ID from the [Snap Developer Portal](https://kit.snapchat.com/manage). See [Setting Up Accounts](https://developers.snap.com/camera-kit/getting-started/setting-up-accounts) if you're new to Camera Kit.
 
-Full setup guides:
-
-- Camera Kit Web configuration: https://developers.snap.com/camera-kit/integrate-sdk/web/web-configuration
-- `@snap/camera-kit` docs: https://www.npmjs.com/package/@snap/camera-kit
-
-## Compatibility
-
-- Requires `@snap/camera-kit` `^1.13.0`, because `1.13.0+` includes the SDK-side font bootstrap behavior needed by this package.
-
-## Usage
-
-This package provides a simple API for integrating Camera Kit into React applications.
-
-The simplest use case is:
+## Quick start
 
 ```tsx
-<CameraKitProvider apiToken="YOUR_TOKEN">
-  <LensPlayer lensId="YOUR_LENS_ID" lensGroupId="YOUR_GROUP_ID" />
-</CameraKitProvider>
+import { CameraKitProvider, LensPlayer } from "@snap/react-camera-kit";
+
+function App() {
+  return (
+    <CameraKitProvider apiToken="YOUR_API_TOKEN">
+      <LensPlayer lensId="YOUR_LENS_ID" lensGroupId="YOUR_LENS_GROUP_ID" />
+    </CameraKitProvider>
+  );
+}
 ```
 
-if you need to render specific canvas with custom layout:
+That's it — `CameraKitProvider` initializes the SDK, and `LensPlayer` sets up the camera, applies the Lens, and renders the output canvas.
+
+## Components
+
+### CameraKitProvider
+
+The root provider that initializes the Camera Kit SDK. All other components and hooks must be descendants of this provider.
 
 ```tsx
-<CameraKitProvider apiToken="YOUR_TOKEN">
-  <LensPlayer lensId="YOUR_LENS_ID" lensGroupId="YOUR_GROUP_ID" canvasType="both">
-    <div>
-      <LiveCanvas />
-    </div>
-    <div>
-      <CaptureCanvas />
-    </div>
-  </LensPlayer>
-</CameraKitProvider>
+import { CameraKitProvider, createConsoleLogger } from "@snap/react-camera-kit";
+
+<CameraKitProvider apiToken="YOUR_API_TOKEN" logger={createConsoleLogger()} logLevel="info">
+  {children}
+</CameraKitProvider>;
 ```
 
-if you need to access lens status (assuming `CameraKitProvider` context):
+| Prop                          | Type                                     | Default      | Description                                                   |
+| ----------------------------- | ---------------------------------------- | ------------ | ------------------------------------------------------------- |
+| `apiToken`                    | `string`                                 | **required** | Camera Kit API token                                          |
+| `logger`                      | `CameraKitLogger`                        | `noopLogger` | Logger instance — use `createConsoleLogger()` for development |
+| `logLevel`                    | `"debug" \| "info" \| "warn" \| "error"` | `"info"`     | Log verbosity                                                 |
+| `renderWhileTabHidden`        | `boolean`                                | `false`      | Continue rendering when the browser tab is hidden             |
+| `stabilityKey`                | `string \| number`                       | auto         | Manual control over when the SDK re-initializes               |
+| `extendContainer`             | `(container) => container`               | —            | Customize the SDK's DI container                              |
+| `createBootstrapEventHandler` | `MetricEventHandlerFactory`              | —            | Factory for tracking bootstrap success/failure                |
+
+### LensPlayer
+
+All-in-one component that handles source setup, Lens application, and playback. Defaults to the user's camera if no `source` is provided.
+
+```tsx
+<LensPlayer lensId="YOUR_LENS_ID" lensGroupId="YOUR_LENS_GROUP_ID" className="camera-canvas" />
+```
+
+| Prop             | Type                    | Default              | Description                                                                                      |
+| ---------------- | ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------ |
+| `lensId`         | `string`                | —                    | Lens to apply                                                                                    |
+| `lensGroupId`    | `string`                | —                    | Lens Group containing the Lens                                                                   |
+| `source`         | `SourceInput`           | `{ kind: "camera" }` | Media source (camera, video, or image)                                                           |
+| `outputSize`     | `OutputSize`            | —                    | Rendering canvas size                                                                            |
+| `lensLaunchData` | `LensLaunchData`        | —                    | Launch parameters passed to the Lens                                                             |
+| `lensReadyGuard` | `() => Promise<void>`   | —                    | Async guard called while Lens is loading (2s timeout)                                            |
+| `refreshTrigger` | `unknown`               | —                    | When this value changes, the Lens is removed and reapplied                                       |
+| `canvasType`     | `"live" \| "capture"`   | `"live"`             | Which canvas to render. For custom layouts, use `LiveCanvas`/`CaptureCanvas` as children instead |
+| `fpsLimit`       | `number`                | —                    | Maximum rendering framerate                                                                      |
+| `muted`          | `boolean`               | `false`              | Mute audio output                                                                                |
+| `screenRegions`  | `ScreenRegions`         | —                    | Screen regions for Lens-aware UI layout                                                          |
+| `onError`        | `(error, lens) => void` | —                    | Callback for playback errors                                                                     |
+| `className`      | `string`                | —                    | CSS class name                                                                                   |
+| `style`          | `CSSProperties`         | —                    | Inline styles                                                                                    |
+| `children`       | `ReactNode`             | —                    | Custom children (use with `LiveCanvas`/`CaptureCanvas`)                                          |
+
+### LiveCanvas / CaptureCanvas
+
+Render the live preview or capture canvas as children of `LensPlayer`:
+
+```tsx
+<LensPlayer lensId="YOUR_LENS_ID" lensGroupId="YOUR_LENS_GROUP_ID">
+  <div>
+    <LiveCanvas style={{ width: "100%" }} />
+  </div>
+  <div>
+    <CaptureCanvas style={{ width: "100%" }} />
+  </div>
+</LensPlayer>
+```
+
+Both accept `className` and `style` props.
+
+## Hooks
+
+### useCameraKit
+
+Access the full Camera Kit context — SDK status, source/Lens state, and imperative methods. Must be called within a `CameraKitProvider`.
+
+```tsx
+import { useCameraKit } from "@snap/react-camera-kit";
+
+function Controls() {
+  const { sdkStatus, lens, lenses, isMuted, toggleMuted, applyLens, removeLens, fetchLenses } = useCameraKit();
+
+  if (sdkStatus !== "ready") return <p>Loading SDK...</p>;
+
+  return (
+    <div>
+      <p>Lens: {lens.lensId ?? "None"}</p>
+      <button onClick={toggleMuted}>{isMuted ? "Unmute" : "Mute"}</button>
+      <button onClick={removeLens}>Remove Lens</button>
+    </div>
+  );
+}
+```
+
+**State properties:**
+
+| Property        | Type                                                      | Description                             |
+| --------------- | --------------------------------------------------------- | --------------------------------------- |
+| `sdkStatus`     | `"uninitialized" \| "initializing" \| "ready" \| "error"` | SDK initialization status               |
+| `sdkError`      | `Error \| undefined`                                      | Error from SDK initialization           |
+| `source`        | `CurrentSource`                                           | Current source status, input, and error |
+| `lens`          | `CurrentLens`                                             | Current Lens status, IDs, and error     |
+| `lenses`        | `Lens[]`                                                  | Array of loaded Lens objects            |
+| `liveCanvas`    | `HTMLCanvasElement \| undefined`                          | Live preview canvas element             |
+| `captureCanvas` | `HTMLCanvasElement \| undefined`                          | Capture canvas element                  |
+| `keyboard`      | `Keyboard \| undefined`                                   | Keyboard API for Lens keyboard requests |
+| `isMuted`       | `boolean`                                                 | Whether audio is muted                  |
+| `fpsLimit`      | `number \| undefined`                                     | Current FPS limit                       |
+| `screenRegions` | `ScreenRegions \| undefined`                              | Current screen regions                  |
+
+**Methods:**
+
+| Method                                                 | Description                                             |
+| ------------------------------------------------------ | ------------------------------------------------------- |
+| `applySource(input, size?)`                            | Apply a media source (camera, video, or image)          |
+| `removeSource()`                                       | Remove the current source                               |
+| `fetchLens(lensId, groupId)`                           | Load a single Lens (returns cached if already loaded)   |
+| `fetchLenses(groupId)`                                 | Load all Lenses in a group (accepts string or string[]) |
+| `applyLens(lensId, groupId, launchData?, readyGuard?)` | Apply a Lens by ID                                      |
+| `removeLens()`                                         | Remove the current Lens                                 |
+| `refreshLens()`                                        | Remove and reapply the current Lens                     |
+| `reinitialize()`                                       | Re-bootstrap the SDK (useful after errors)              |
+| `setMuted(muted)`                                      | Set the muted state                                     |
+| `toggleMuted()`                                        | Toggle audio mute                                       |
+| `setFPSLimit(fps)`                                     | Set maximum rendering FPS                               |
+| `setScreenRegions(regions)`                            | Set screen regions for Lens-aware layout                |
+
+### useApplyLens
+
+Declaratively apply a Lens — it updates automatically when parameters change.
+
+```tsx
+import { useApplyLens } from "@snap/react-camera-kit";
+
+useApplyLens("YOUR_LENS_ID", "YOUR_LENS_GROUP_ID");
+```
+
+| Parameter        | Type                  | Description                          |
+| ---------------- | --------------------- | ------------------------------------ |
+| `lensId`         | `string \| undefined` | Lens ID — pass `undefined` to remove |
+| `lensGroupId`    | `string \| undefined` | Lens Group ID                        |
+| `lensLaunchData` | `LensLaunchData`      | Optional launch parameters           |
+| `lensReadyGuard` | `() => Promise<void>` | Optional async ready guard           |
+
+### useApplySource
+
+Declaratively apply a media source. Defaults to camera if no source is provided.
+
+```tsx
+import { useApplySource } from "@snap/react-camera-kit";
+
+// Video source with fixed output size
+useApplySource({ kind: "video", url: "/demo.mp4", autoplay: true }, { mode: "fixed", width: 720, height: 1280 });
+```
+
+| Parameter    | Type          | Default              | Description    |
+| ------------ | ------------- | -------------------- | -------------- |
+| `source`     | `SourceInput` | `{ kind: "camera" }` | Media source   |
+| `outputSize` | `OutputSize`  | —                    | Rendering size |
+
+### usePlaybackOptions
+
+Declaratively set playback options.
+
+```tsx
+import { usePlaybackOptions } from "@snap/react-camera-kit";
+
+usePlaybackOptions({
+  fpsLimit: 30,
+  muted: false,
+  onError: (error) => console.error("Playback error:", error),
+});
+```
+
+| Option          | Type                    | Description                    |
+| --------------- | ----------------------- | ------------------------------ |
+| `fpsLimit`      | `number`                | Maximum rendering FPS          |
+| `muted`         | `boolean`               | Mute audio                     |
+| `screenRegions` | `ScreenRegions`         | Screen regions for Lens layout |
+| `onError`       | `(error, lens) => void` | Playback error callback        |
+
+## Media sources
+
+Pass a `SourceInput` to `LensPlayer`'s `source` prop or to `useApplySource`:
+
+```tsx
+// Camera (default)
+{ kind: "camera" }
+{ kind: "camera", deviceId: "abc123", options: { cameraFacing: "environment" } }
+
+// Video
+{ kind: "video", url: "/demo.mp4", autoplay: true }
+
+// Image
+{ kind: "image", url: "/photo.jpg" }
+```
+
+### Camera source options
+
+| Option              | Type                      | Default                        | Description                   |
+| ------------------- | ------------------------- | ------------------------------ | ----------------------------- |
+| `cameraFacing`      | `"user" \| "environment"` | `"user"`                       | Front or back camera          |
+| `cameraConstraints` | `MediaTrackConstraints`   | `{ width: 1280, height: 720 }` | Camera resolution constraints |
+| `cameraRotation`    | `0 \| -90 \| 90 \| 180`   | `0`                            | Camera rotation               |
+| `fpsLimit`          | `number`                  | —                              | Max FPS for the source        |
+| `outputSize`        | `OutputSize`              | —                              | Rendering canvas size         |
+
+### Output size
+
+```tsx
+// Fixed resolution
+{ mode: "fixed", width: 720, height: 1280 }
+
+// Match input source resolution
+{ mode: "match-input" }
+```
+
+## Handling loading and error states
+
+Use `useCameraKit()` to track the status of the SDK, source, and Lens. Each progresses through `"none" → "loading" → "ready"` (or `"error"`):
 
 ```tsx
 function Preview() {
-  const { lens } = useCameraKit();
+  const { sdkStatus, sdkError, source, lens } = useCameraKit();
+
+  if (sdkStatus === "error") return <p>SDK failed: {sdkError?.message}</p>;
+  if (sdkStatus !== "ready") return <p>Initializing...</p>;
+  if (source.status === "loading") return <p>Setting up camera...</p>;
+  if (lens.status === "error") return <p>Lens error: {lens.error?.message}</p>;
+
   return (
-    <LensPlayer lensId="YOUR_LENS_ID" lensGroupId="YOUR_GROUP_ID">
-      {lens.status !== "ready" && lens.status !== "error" && <Spinner />}
-      {lens.status === "error" && <Error error={lens.error} />}
-      {lens.status === "ready" && <LiveCanvas />}
+    <LensPlayer lensId="YOUR_LENS_ID" lensGroupId="YOUR_LENS_GROUP_ID">
+      {lens.status !== "ready" && <div className="spinner" />}
+      <LiveCanvas />
     </LensPlayer>
   );
 }
 ```
 
-When you need full control (assuming `CameraKitProvider` context):
+## Full example: Lens switcher
 
 ```tsx
-function Preview() {
-  const { sdkStatus, source, lens } = useCameraKit();
-  useApplySource({ kind: "video", url: "/demo.mp4" }, { mode: "fixed", width: 720, height: 1280 });
-  useApplyLens("123", "abc", launchData);
-  usePlaybackOptions({ onError: (error) => console.error(error) });
+import { CameraKitProvider, LensPlayer, LiveCanvas, useCameraKit } from "@snap/react-camera-kit";
+import { useEffect } from "react";
 
-  if (sdkStatus !== "ready" || source.status !== "ready" || lens.status !== "ready") {
-    return <Spinner />;
+const LENS_GROUP_ID = "YOUR_LENS_GROUP_ID";
+
+function LensSwitcher() {
+  const { sdkStatus, lenses, lens, fetchLenses, applyLens, isMuted, toggleMuted, reinitialize, sdkError } =
+    useCameraKit();
+
+  useEffect(() => {
+    if (sdkStatus === "ready") fetchLenses(LENS_GROUP_ID);
+  }, [sdkStatus]);
+
+  if (sdkStatus === "error") {
+    return (
+      <div>
+        <p>SDK error: {sdkError?.message}</p>
+        <button onClick={reinitialize}>Retry</button>
+      </div>
+    );
   }
-  return <CaptureCanvas className="rounded-xl" />;
+
+  return (
+    <div>
+      <select value={lens.lensId ?? ""} onChange={(e) => applyLens(e.target.value, LENS_GROUP_ID)}>
+        <option value="" disabled>
+          Select a Lens
+        </option>
+        {lenses.map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.name}
+          </option>
+        ))}
+      </select>
+      <button onClick={toggleMuted}>{isMuted ? "Unmute" : "Mute"}</button>
+
+      <LensPlayer lensId={lens.lensId} lensGroupId={LENS_GROUP_ID}>
+        <LiveCanvas style={{ width: "100%", maxWidth: 640 }} />
+      </LensPlayer>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <CameraKitProvider apiToken="YOUR_API_TOKEN">
+      <LensSwitcher />
+    </CameraKitProvider>
+  );
 }
 ```
+
+## Utilities
+
+| Export                   | Description                                         |
+| ------------------------ | --------------------------------------------------- |
+| `createConsoleLogger()`  | Returns a logger that prints to the browser console |
+| `createNoopLogger()`     | Returns a silent logger (default)                   |
+| `isCameraSource(source)` | Type guard for `CameraSourceInput`                  |
+| `isVideoSource(source)`  | Type guard for `VideoSourceInput`                   |
+| `isImageSource(source)`  | Type guard for `ImageSourceInput`                   |
+| `CameraRotationOptions`  | Valid rotation values: `[0, -90, 90, 180]`          |
 
 ## Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Build the package (ESM + CJS)
-npm run build
-
-# Build in watch mode (for development)
-npm run watch
-
-# Type checking
-npm run typecheck
-
-# Run tests
-npm test
-
-# Clean dist folder
-npm run clean
+npm install           # Install dependencies
+npm run build         # Build ESM + CJS
+npm run watch         # Build in watch mode
+npm run typecheck     # Type checking
+npm test              # Run tests
+npm run clean         # Clean dist folder
 ```
 
-## Demo App
+### Demo app
 
-A Vite demo app is available at `demo`.
+A Vite demo app is available in `demo/`:
 
 ```bash
 npm run demo:install
@@ -120,7 +360,7 @@ npm run demo:dev
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to get started.
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)

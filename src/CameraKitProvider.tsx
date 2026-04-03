@@ -352,6 +352,10 @@ export const CameraKitProvider: React.FC<CameraKitProviderProps> = ({
     const abortController = new AbortController();
     const emit = eventFactoryRef.current?.();
 
+    // Clear stale lens cache — the old kit's lensRepository is no longer valid.
+    lensCache.current.clear();
+    setLenses([]);
+
     setCameraKitState({ status: "initializing" });
     emit?.({ kind: "bootstrap-attempt" });
     log.info("bootstrap_attempt");

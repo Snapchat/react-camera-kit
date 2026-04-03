@@ -382,6 +382,62 @@ describe("CameraKitProvider", () => {
       expect(result.current.lenses).toHaveLength(2);
     });
 
+    it("should clear lens cache on re-bootstrap", async () => {
+      const mockLens = { id: "lens-1", groupId: "group-1" } as Lens;
+      (mockKit.lensRepository.loadLens as any).mockResolvedValue(mockLens);
+
+      const mockKit2 = {
+        destroy: jest.fn().mockResolvedValue(undefined),
+        createSession: jest.fn().mockResolvedValue(mockSession),
+        lensRepository: {
+          loadLens: jest.fn().mockResolvedValue(mockLens),
+          loadLensGroups: jest.fn(),
+        },
+      } as any;
+
+      mockBootstrapCameraKit.mockReset().mockResolvedValueOnce(mockKit).mockResolvedValueOnce(mockKit2);
+
+      let stabilityKey = "key-1";
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <CameraKitProvider apiToken="test-token" stabilityKey={stabilityKey}>
+          {children}
+        </CameraKitProvider>
+      );
+
+      const { result, rerender } = renderHook(() => useCameraKit(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.sdkStatus).toBe("ready");
+      });
+
+      // Fetch a lens — populates the cache
+      await act(async () => {
+        await result.current.fetchLens("lens-1", "group-1");
+      });
+
+      expect(mockKit.lensRepository.loadLens).toHaveBeenCalledTimes(1);
+      expect(result.current.lenses).toHaveLength(1);
+
+      // Trigger re-bootstrap by changing stabilityKey
+      stabilityKey = "key-2";
+      rerender();
+
+      await waitFor(() => {
+        expect(result.current.sdkStatus).toBe("ready");
+        expect(mockBootstrapCameraKit).toHaveBeenCalledTimes(2);
+      });
+
+      // Lenses state should have been cleared
+      expect(result.current.lenses).toHaveLength(0);
+
+      // Fetch the same lens again — should NOT hit cache, should call new kit's loadLens
+      await act(async () => {
+        await result.current.fetchLens("lens-1", "group-1");
+      });
+
+      expect(mockKit2.lensRepository.loadLens).toHaveBeenCalledWith("lens-1", "group-1");
+    });
+
     it("should apply lens", async () => {
       const mockLens = { id: "lens-1", groupId: "group-1" } as Lens;
       (mockKit.lensRepository.loadLens as any).mockResolvedValue(mockLens);

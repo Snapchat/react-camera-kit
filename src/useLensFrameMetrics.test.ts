@@ -221,6 +221,30 @@ describe("useLensFrameMetrics", () => {
     expect(session.metrics.beginMeasurement).toHaveBeenCalledTimes(1);
   });
 
+  it("does not restart measurement when interval changes", () => {
+    const { measurement, session } = setupContext();
+
+    const { rerender } = renderHook(({ interval }) => useLensFrameMetrics({ interval }), {
+      initialProps: { interval: 500 },
+    });
+
+    expect(session.metrics.beginMeasurement).toHaveBeenCalledTimes(1);
+    measurement.end.mockClear();
+
+    rerender({ interval: 1000 });
+
+    // Should NOT end/restart the measurement
+    expect(measurement.end).not.toHaveBeenCalled();
+    expect(session.metrics.beginMeasurement).toHaveBeenCalledTimes(1);
+
+    // But should poll at the new interval
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    expect(measurement.measure).toHaveBeenCalled();
+  });
+
   it("clears metrics state when session is lost", () => {
     const { measurement } = setupContext();
     measurement.measure.mockReturnValue(createMockMetrics({ avgFps: 60 }));

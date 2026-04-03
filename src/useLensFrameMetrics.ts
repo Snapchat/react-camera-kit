@@ -31,13 +31,13 @@ interface UseLensFrameMetricsOptions {
  * ```
  */
 export function useLensFrameMetrics(options: UseLensFrameMetricsOptions): ComputedFrameMetrics | undefined {
-  const { enabled = true } = options;
+  const { enabled = true, interval } = options;
   const { currentSession, lens } = useInternalCameraKit();
   const [metrics, setMetrics] = useState<ComputedFrameMetrics | undefined>(undefined);
-  const measurementRef = useRef<LensPerformanceMeasurement | null>(null);
+  const measurementRef = useRef<LensPerformanceMeasurement | undefined>(undefined);
   const isFirstLensRender = useRef(true);
 
-  // Begin/end measurement and set up polling interval
+  // Begin/end measurement lifecycle
   useEffect(() => {
     if (!currentSession || !enabled) {
       setMetrics(undefined);
@@ -47,17 +47,24 @@ export function useLensFrameMetrics(options: UseLensFrameMetricsOptions): Comput
     const measurement = currentSession.metrics.beginMeasurement();
     measurementRef.current = measurement;
 
-    const intervalId = setInterval(() => {
-      setMetrics(measurement.measure());
-    }, options.interval);
-
     return () => {
-      clearInterval(intervalId);
       measurement.end();
-      measurementRef.current = null;
+      measurementRef.current = undefined;
       isFirstLensRender.current = true;
     };
-  }, [currentSession, options.interval, enabled]);
+  }, [currentSession, enabled]);
+
+  // Poll measurement on interval (separate so changing interval doesn't restart measurement)
+  useEffect(() => {
+    if (!currentSession || !enabled) return;
+
+    const intervalId = setInterval(() => {
+      const result = measurementRef.current?.measure();
+      if (result) setMetrics(result);
+    }, interval);
+
+    return () => clearInterval(intervalId);
+  }, [currentSession, enabled, interval]);
 
   // Reset measurement when lens changes (skip on initial mount)
   useEffect(() => {

@@ -17,6 +17,7 @@ export { useApplyLens } from "./useApplyLens";
 export { useApplySource } from "./useApplySource";
 export { usePlaybackOptions } from "./usePlaybackOptions";
 export type { PlaybackOptions } from "./usePlaybackOptions";
+export { useLensFrameMetrics } from "./useLensFrameMetrics";
 
 // Types
 export type {

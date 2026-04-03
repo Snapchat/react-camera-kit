@@ -271,6 +271,32 @@ function Preview() {
 }
 ```
 
+### Frame Metrics
+
+Use `useLensFrameMetrics` to monitor lens rendering performance:
+
+```tsx
+import { useLensFrameMetrics } from "@snap/react-camera-kit";
+
+function PerformanceOverlay() {
+  const metrics = useLensFrameMetrics({ interval: 500 });
+
+  if (!metrics) return null;
+
+  return (
+    <div>
+      <p>FPS: {metrics.avgFps.toFixed(1)}</p>
+      <p>Frame time: {metrics.lensFrameProcessingTimeMsAvg.toFixed(1)}ms</p>
+    </div>
+  );
+}
+```
+
+The hook accepts:
+
+- `interval` (required) — polling interval in milliseconds
+- `enabled` (optional, defaults to `true`) — set to `false` to disable measurement without unmounting
+
 ## Full example: Lens switcher
 
 ```tsx

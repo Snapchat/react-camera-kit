@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
-import { LensLaunchData } from "@snap/camera-kit";
+import { LensAbortError, LensLaunchData } from "@snap/camera-kit";
 import hash from "stable-hash";
 import { useInternalCameraKit } from "./CameraKitProvider";
+import { metricsReporter } from "./internal/metrics";
+
+const LENS_ABORT_ERROR_NAME: LensAbortError["name"] = "LensAbortError";
 
 /**
  * Declaratively applies a Lens to the current CameraKit session.
@@ -31,7 +34,8 @@ export function useApplyLens(
   lensLaunchData?: LensLaunchData,
   lensReadyGuard?: () => Promise<void>,
 ) {
-  const { cameraKit, sdkStatus, currentSession, applyLens, removeLens, getLogger } = useInternalCameraKit();
+  const { cameraKit, sdkStatus, sdkError, currentSession, applyLens, removeLens, reinitialize, getLogger } =
+    useInternalCameraKit();
   const log = getLogger("useApplyLens");
 
   const launchKey = hash(lensLaunchData);
@@ -89,4 +93,24 @@ export function useApplyLens(
       });
     };
   }, [lensId, lensGroupId, launchKey, sdkStatus, cameraKit, currentSession, applyLens, removeLens, log]);
+
+  // Auto-recovery: when a LensAbortError has wedged the SDK, a *new* lens intent
+  // (id, group, or launch data) means "try this other lens" — so reinitialize the
+  // SDK. Once it returns to "ready", the apply effect above runs and applies the
+  // current lens. Gated to LensAbortError only: a bootstrap failure is unrelated to
+  // the requested lens, so a lens change must not trigger a rebuild there.
+  const recoveryKey = `${lensId ?? ""}::${lensGroupId ?? ""}::${launchKey}`;
+  const prevRecoveryKeyRef = useRef(recoveryKey);
+  useEffect(() => {
+    const changed = prevRecoveryKeyRef.current !== recoveryKey;
+    prevRecoveryKeyRef.current = recoveryKey;
+    if (!changed) return;
+    if (!lensId || !lensGroupId) return;
+
+    if (sdkStatus === "error" && sdkError?.name === LENS_ABORT_ERROR_NAME) {
+      log.info("auto_reinit_on_lens_change", { lensId, groupId: lensGroupId });
+      metricsReporter.reportCount("auto_reinit_on_lens_change");
+      reinitialize();
+    }
+  }, [recoveryKey, sdkStatus, sdkError, lensId, lensGroupId, reinitialize, log]);
 }

@@ -2,13 +2,18 @@ import { renderHook, waitFor } from "@testing-library/react";
 import hash from "stable-hash";
 import { useApplyLens } from "./useApplyLens";
 import { useInternalCameraKit } from "./CameraKitProvider";
+import { metricsReporter } from "./internal/metrics";
 
 jest.mock("stable-hash");
 jest.mock("@snap/camera-kit", () => ({}));
 jest.mock("./CameraKitProvider");
+jest.mock("./internal/metrics", () => ({
+  metricsReporter: { reportCount: jest.fn() },
+}));
 
 const mockUseInternalCameraKit = useInternalCameraKit as jest.MockedFunction<typeof useInternalCameraKit>;
 const mockHash = hash as jest.MockedFunction<typeof hash>;
+const mockReportCount = metricsReporter.reportCount as jest.Mock;
 
 describe("useApplyLens", () => {
   let mockApplyLens: jest.Mock;
@@ -17,6 +22,7 @@ describe("useApplyLens", () => {
   let mockLogger: any;
   let mockCameraKit: any;
   let mockSession: any;
+  let mockReinitialize: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -31,6 +37,7 @@ describe("useApplyLens", () => {
     mockApplyLens = jest.fn().mockResolvedValue(true);
     mockRemoveLens = jest.fn().mockResolvedValue(true);
     mockGetLogger = jest.fn().mockReturnValue(mockLogger);
+    mockReinitialize = jest.fn();
 
     mockCameraKit = { id: "mock-kit" };
     mockSession = { id: "mock-session" };
@@ -38,9 +45,11 @@ describe("useApplyLens", () => {
     mockUseInternalCameraKit.mockReturnValue({
       cameraKit: mockCameraKit,
       sdkStatus: "ready",
+      sdkError: undefined,
       currentSession: mockSession,
       applyLens: mockApplyLens,
       removeLens: mockRemoveLens,
+      reinitialize: mockReinitialize,
       getLogger: mockGetLogger,
     } as any);
 
@@ -399,6 +408,117 @@ describe("useApplyLens", () => {
       await waitFor(() => {
         expect(mockRemoveLens).toHaveBeenCalledTimes(2); // Once after apply, once on unmount
       });
+    });
+  });
+
+  describe("Auto-recovery on LensAbortError", () => {
+    const abortError = Object.assign(new Error("aborted"), { name: "LensAbortError" });
+
+    const errorContext = (sdkError: Error) =>
+      ({
+        cameraKit: null,
+        sdkStatus: "error",
+        sdkError,
+        currentSession: null,
+        applyLens: mockApplyLens,
+        removeLens: mockRemoveLens,
+        reinitialize: mockReinitialize,
+        getLogger: mockGetLogger,
+      }) as any;
+
+    it("reinitializes when lensId changes while SDK is in a LensAbortError", () => {
+      mockUseInternalCameraKit.mockReturnValue(errorContext(abortError));
+
+      const { rerender } = renderHook(({ lensId }) => useApplyLens(lensId, "group-1"), {
+        initialProps: { lensId: "lens-1" },
+      });
+
+      // Must not fire on mount.
+      expect(mockReinitialize).not.toHaveBeenCalled();
+
+      rerender({ lensId: "lens-2" });
+
+      expect(mockReinitialize).toHaveBeenCalledTimes(1);
+      // Recovery only un-wedges the SDK; it does not apply the lens itself.
+      expect(mockApplyLens).not.toHaveBeenCalled();
+    });
+
+    it("reinitializes when launch data changes while in a LensAbortError", () => {
+      mockHash.mockImplementation((obj) => JSON.stringify(obj));
+      mockUseInternalCameraKit.mockReturnValue(errorContext(abortError));
+
+      const { rerender } = renderHook(({ launchData }) => useApplyLens("lens-1", "group-1", launchData), {
+        initialProps: { launchData: { launchParams: { hint: "face" } } },
+      });
+
+      rerender({ launchData: { launchParams: { hint: "hand" } } });
+
+      expect(mockReinitialize).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT reinitialize for a bootstrap-failure error", () => {
+      const bootError = Object.assign(new Error("boot failed"), { name: "BootstrapError" });
+      mockUseInternalCameraKit.mockReturnValue(errorContext(bootError));
+
+      const { rerender } = renderHook(({ lensId }) => useApplyLens(lensId, "group-1"), {
+        initialProps: { lensId: "lens-1" },
+      });
+
+      rerender({ lensId: "lens-2" });
+
+      expect(mockReinitialize).not.toHaveBeenCalled();
+    });
+
+    it("does NOT reinitialize when no target lens is set", () => {
+      mockUseInternalCameraKit.mockReturnValue(errorContext(abortError));
+
+      const { rerender } = renderHook(({ groupId }) => useApplyLens(undefined, groupId), {
+        initialProps: { groupId: "group-1" },
+      });
+
+      rerender({ groupId: "group-2" });
+
+      expect(mockReinitialize).not.toHaveBeenCalled();
+    });
+
+    it("does NOT reinitialize when SDK is ready (no regression)", async () => {
+      const { rerender } = renderHook(({ lensId }) => useApplyLens(lensId, "group-1"), {
+        initialProps: { lensId: "lens-1" },
+      });
+
+      rerender({ lensId: "lens-2" });
+
+      await waitFor(() => {
+        expect(mockApplyLens).toHaveBeenCalledWith("lens-2", "group-1", undefined, undefined);
+      });
+      expect(mockReinitialize).not.toHaveBeenCalled();
+    });
+
+    it("reinitializes only once for a lens that keeps aborting under the same id", () => {
+      mockUseInternalCameraKit.mockReturnValue(errorContext(abortError));
+
+      const { rerender } = renderHook(({ lensId }) => useApplyLens(lensId, "group-1"), {
+        initialProps: { lensId: "lens-1" },
+      });
+
+      rerender({ lensId: "lens-2" });
+      expect(mockReinitialize).toHaveBeenCalledTimes(1);
+
+      // The new lens re-aborts; the id has not changed, so we must not reinit again.
+      rerender({ lensId: "lens-2" });
+      expect(mockReinitialize).toHaveBeenCalledTimes(1);
+    });
+
+    it("emits the auto_reinit_on_lens_change metric when it fires", () => {
+      mockUseInternalCameraKit.mockReturnValue(errorContext(abortError));
+
+      const { rerender } = renderHook(({ lensId }) => useApplyLens(lensId, "group-1"), {
+        initialProps: { lensId: "lens-1" },
+      });
+
+      rerender({ lensId: "lens-2" });
+
+      expect(mockReportCount).toHaveBeenCalledWith("auto_reinit_on_lens_change");
     });
   });
 });

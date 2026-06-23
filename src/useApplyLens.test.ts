@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import hash from "stable-hash";
 import { useApplyLens } from "./useApplyLens";
 import { useInternalCameraKit } from "./CameraKitProvider";
@@ -14,6 +14,16 @@ jest.mock("./internal/metrics", () => ({
 const mockUseInternalCameraKit = useInternalCameraKit as jest.MockedFunction<typeof useInternalCameraKit>;
 const mockHash = hash as jest.MockedFunction<typeof hash>;
 const mockReportCount = metricsReporter.reportCount as jest.Mock;
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  let reject: (reason?: unknown) => void = () => {};
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 describe("useApplyLens", () => {
   let mockApplyLens: jest.Mock;
@@ -387,14 +397,9 @@ describe("useApplyLens", () => {
   });
 
   describe("Cancellation handling", () => {
-    it("should remove lens if component unmounts during application", async () => {
-      let resolveApply: any;
-      mockApplyLens.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveApply = resolve;
-          }),
-      );
+    it("should not remove lens again if component unmounts during application", async () => {
+      const apply = deferred<boolean>();
+      mockApplyLens.mockReturnValue(apply.promise);
 
       const { unmount } = renderHook(() => useApplyLens("lens-123", "group-456"));
 
@@ -403,11 +408,39 @@ describe("useApplyLens", () => {
       });
 
       unmount();
-      resolveApply(true);
+      await act(async () => {
+        apply.resolve(true);
+        await apply.promise;
+      });
+
+      expect(mockRemoveLens).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not remove the current lens when a superseded apply resolves late", async () => {
+      const firstApply = deferred<boolean>();
+      mockApplyLens.mockImplementationOnce(() => firstApply.promise).mockResolvedValueOnce(true);
+
+      const { rerender } = renderHook(({ lensId }) => useApplyLens(lensId, "group-1"), {
+        initialProps: { lensId: "lens-1" },
+      });
 
       await waitFor(() => {
-        expect(mockRemoveLens).toHaveBeenCalledTimes(2); // Once after apply, once on unmount
+        expect(mockApplyLens).toHaveBeenCalledWith("lens-1", "group-1", undefined, undefined);
       });
+
+      rerender({ lensId: "lens-2" });
+
+      await waitFor(() => {
+        expect(mockApplyLens).toHaveBeenCalledWith("lens-2", "group-1", undefined, undefined);
+      });
+      expect(mockRemoveLens).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        firstApply.resolve(true);
+        await firstApply.promise;
+      });
+
+      expect(mockRemoveLens).toHaveBeenCalledTimes(1);
     });
   });
 

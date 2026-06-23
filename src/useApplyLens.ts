@@ -71,10 +71,7 @@ export function useApplyLens(
     (async () => {
       try {
         await applyLens(lensId, lensGroupId, safeLaunchData, guardRef.current);
-        if (cancelled) {
-          await removeLens();
-          return;
-        }
+        if (cancelled) return;
         log.info("apply_success", {
           lensId,
           groupId: lensGroupId,

@@ -128,10 +128,13 @@ function createCameraKitVideoSource({
       "canplay",
       async () => {
         try {
-          if (autoplay) await videoInput.play();
           // When a tracking-data sidecar is provided, fetch it and hand it to createVideoSource so the
           // recorded tracking (camera pose, etc.) is replayed against the video instead of live tracking.
+          // Fetch BEFORE starting playback: the looping video must not advance before Camera Kit has the
+          // source, or replay tracking drifts from the video timeline; and a fetch failure then rejects
+          // before any playback has started, so there is no orphaned playing video to clean up.
           const trackingData = trackingDataUrl ? await fetchTrackingData(trackingDataUrl) : undefined;
+          if (autoplay) await videoInput.play();
           res({
             cameraKitSource: createVideoSource(videoInput, trackingData ? { trackingData } : undefined),
             transform: Transform2D.Identity,

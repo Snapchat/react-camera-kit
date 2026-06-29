@@ -366,6 +366,8 @@ describe("sourceUtils", () => {
       videoElement.dispatchEvent(new Event("canplay"));
 
       await expect(promise).rejects.toThrow("Unable to load tracking data");
+      // Tracking data is fetched before playback starts, so a failed fetch must not leave the video playing.
+      expect(videoElement.play).not.toHaveBeenCalled();
     });
   });
 

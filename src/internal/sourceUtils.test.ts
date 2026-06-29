@@ -239,6 +239,7 @@ describe("sourceUtils", () => {
 
     afterEach(() => {
       jest.restoreAllMocks();
+      delete (globalThis as { fetch?: typeof fetch }).fetch;
     });
 
     it("should create a video source with autoplay", async () => {
@@ -319,6 +320,52 @@ describe("sourceUtils", () => {
         url: "https://example.com/video.mp4",
         videoElement: videoElement,
       });
+    });
+
+    it("should fetch tracking data and pass it to createVideoSource when trackingDataUrl is set", async () => {
+      const buffer = new ArrayBuffer(8);
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true, arrayBuffer: () => Promise.resolve(buffer) });
+      (globalThis as { fetch?: typeof fetch }).fetch = fetchMock as typeof fetch;
+
+      const source = {
+        kind: "video" as const,
+        url: "https://example.com/video.mp4",
+        trackingDataUrl: "https://example.com/clip.td",
+      };
+
+      const promise = createCameraKitSource(source);
+      videoElement.dispatchEvent(new Event("canplay"));
+      await promise;
+
+      expect(fetchMock).toHaveBeenCalledWith("https://example.com/clip.td");
+      expect(mockCreateVideoSource).toHaveBeenCalledWith(videoElement, { trackingData: buffer });
+    });
+
+    it("should not pass tracking data when trackingDataUrl is omitted", async () => {
+      const source = { kind: "video" as const, url: "https://example.com/video.mp4" };
+
+      const promise = createCameraKitSource(source);
+      videoElement.dispatchEvent(new Event("canplay"));
+      await promise;
+
+      expect(mockCreateVideoSource).toHaveBeenCalledWith(videoElement, undefined);
+    });
+
+    it("should reject when tracking data fails to load", async () => {
+      (globalThis as { fetch?: typeof fetch }).fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: false, status: 404 } as Response) as typeof fetch;
+
+      const source = {
+        kind: "video" as const,
+        url: "https://example.com/video.mp4",
+        trackingDataUrl: "https://example.com/missing.td",
+      };
+
+      const promise = createCameraKitSource(source);
+      videoElement.dispatchEvent(new Event("canplay"));
+
+      await expect(promise).rejects.toThrow("Unable to load tracking data");
     });
   });
 

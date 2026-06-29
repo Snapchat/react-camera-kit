@@ -43,6 +43,7 @@ export async function createCameraKitSource(source: SourceInput): Promise<Source
     return createCameraKitVideoSource({
       videoUrl: source.url,
       autoplay: source.autoplay,
+      trackingDataUrl: source.trackingDataUrl,
     });
   } else if (source.kind === "image") {
     return createCameraKitImageSource({
@@ -105,7 +106,15 @@ async function createCameraStreamSource({
   };
 }
 
-function createCameraKitVideoSource({ videoUrl, autoplay }: { videoUrl: string; autoplay?: boolean }) {
+function createCameraKitVideoSource({
+  videoUrl,
+  autoplay,
+  trackingDataUrl,
+}: {
+  videoUrl: string;
+  autoplay?: boolean;
+  trackingDataUrl?: string;
+}) {
   return new Promise<SourceApplication>((res, rej) => {
     autoplay = autoplay ?? true;
     const videoInput = document.createElement("video");
@@ -118,17 +127,24 @@ function createCameraKitVideoSource({ videoUrl, autoplay }: { videoUrl: string; 
     videoInput.addEventListener(
       "canplay",
       async () => {
-        if (autoplay) await videoInput.play();
-        res({
-          cameraKitSource: createVideoSource(videoInput),
-          transform: Transform2D.Identity,
-          inputSize: [videoInput.videoWidth, videoInput.videoHeight],
-          initializedSourceInput: {
-            kind: "video",
-            url: videoUrl,
-            videoElement: videoInput,
-          },
-        });
+        try {
+          if (autoplay) await videoInput.play();
+          // When a tracking-data sidecar is provided, fetch it and hand it to createVideoSource so the
+          // recorded tracking (camera pose, etc.) is replayed against the video instead of live tracking.
+          const trackingData = trackingDataUrl ? await fetchTrackingData(trackingDataUrl) : undefined;
+          res({
+            cameraKitSource: createVideoSource(videoInput, trackingData ? { trackingData } : undefined),
+            transform: Transform2D.Identity,
+            inputSize: [videoInput.videoWidth, videoInput.videoHeight],
+            initializedSourceInput: {
+              kind: "video",
+              url: videoUrl,
+              videoElement: videoInput,
+            },
+          });
+        } catch (cause) {
+          rej(cause instanceof Error ? cause : new Error(String(cause)));
+        }
       },
       { once: true },
     );
@@ -144,6 +160,14 @@ function createCameraKitVideoSource({ videoUrl, autoplay }: { videoUrl: string; 
       { once: true },
     );
   });
+}
+
+async function fetchTrackingData(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Unable to load tracking data from ${url} (HTTP ${response.status}).`);
+  }
+  return response.arrayBuffer();
 }
 
 function createCameraKitImageSource({ imageUrl }: { imageUrl: string }) {

@@ -48,6 +48,13 @@ export type VideoSourceInput = {
   kind: "video";
   url: string;
   autoplay?: boolean;
+  /**
+   * Optional URL of a recorded tracking-data buffer to replay against the video (e.g. a Lens Studio
+   * `.td` file). When provided, it is fetched and passed to `createVideoSource` as `trackingData`, so
+   * the lens is driven by the recorded camera pose / tracking instead of live tracking. Useful for
+   * previewing world-facing lenses from a recorded environment.
+   */
+  trackingDataUrl?: string;
 };
 export type ImageSourceInput = { kind: "image"; url: string };
 

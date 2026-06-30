@@ -55,6 +55,12 @@ export type VideoSourceInput = {
    * previewing world-facing lenses from a recorded environment.
    */
   trackingDataUrl?: string;
+  /**
+   * Camera the video should be treated as coming from. Passed to `createVideoSource` as `cameraType`,
+   * which surfaces to the lens (e.g. front/back-facing behavior) and engine tracking. Defaults to
+   * `"user"` (front). Set `"environment"` for back-facing / world content. `"user"` ↔ front, `"environment"` ↔ back.
+   */
+  cameraFacing?: CameraFacing;
 };
 export type ImageSourceInput = { kind: "image"; url: string };
 

@@ -351,6 +351,43 @@ describe("sourceUtils", () => {
       expect(mockCreateVideoSource).toHaveBeenCalledWith(videoElement, undefined);
     });
 
+    it("should pass cameraFacing through as cameraType", async () => {
+      const source = {
+        kind: "video" as const,
+        url: "https://example.com/video.mp4",
+        cameraFacing: "environment" as const,
+      };
+
+      const promise = createCameraKitSource(source);
+      videoElement.dispatchEvent(new Event("canplay"));
+      await promise;
+
+      expect(mockCreateVideoSource).toHaveBeenCalledWith(videoElement, { cameraType: "environment" });
+    });
+
+    it("should combine cameraFacing and tracking data", async () => {
+      const buffer = new ArrayBuffer(8);
+      (globalThis as { fetch?: typeof fetch }).fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: true, arrayBuffer: () => Promise.resolve(buffer) }) as typeof fetch;
+
+      const source = {
+        kind: "video" as const,
+        url: "https://example.com/video.mp4",
+        trackingDataUrl: "https://example.com/clip.td",
+        cameraFacing: "environment" as const,
+      };
+
+      const promise = createCameraKitSource(source);
+      videoElement.dispatchEvent(new Event("canplay"));
+      await promise;
+
+      expect(mockCreateVideoSource).toHaveBeenCalledWith(videoElement, {
+        trackingData: buffer,
+        cameraType: "environment",
+      });
+    });
+
     it("should reject when tracking data fails to load", async () => {
       (globalThis as { fetch?: typeof fetch }).fetch = jest
         .fn()

@@ -55,6 +55,17 @@ export type VideoSourceInput = {
    * previewing world-facing lenses from a recorded environment.
    */
   trackingDataUrl?: string;
+  /**
+   * Front/rear camera semantic the video should be treated as. Passed to CameraKit as `cameraType`,
+   * which affects Lens feature behavior such as surface tracking. Defaults to "user".
+   * "user" is front-facing; "environment" is rear-facing.
+   */
+  cameraFacing?: CameraFacing;
+  /**
+   * Optional cap on frames per second processed from the video. Passed to `createVideoSource` as
+   * `fpsLimit`. Defaults to the video's native frame rate when omitted.
+   */
+  fpsLimit?: number;
 };
 export type ImageSourceInput = { kind: "image"; url: string };
 

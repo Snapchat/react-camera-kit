@@ -348,7 +348,19 @@ describe("sourceUtils", () => {
       videoElement.dispatchEvent(new Event("canplay"));
       await promise;
 
-      expect(mockCreateVideoSource).toHaveBeenCalledWith(videoElement, undefined);
+      // createVideoSource is always called with an options object; trackingData is just undefined here.
+      const options = mockCreateVideoSource.mock.calls[0]?.[1];
+      expect(options?.trackingData).toBeUndefined();
+    });
+
+    it("should pass fpsLimit through", async () => {
+      const source = { kind: "video" as const, url: "https://example.com/video.mp4", fpsLimit: 30 };
+
+      const promise = createCameraKitSource(source);
+      videoElement.dispatchEvent(new Event("canplay"));
+      await promise;
+
+      expect(mockCreateVideoSource.mock.calls[0]?.[1]?.fpsLimit).toBe(30);
     });
 
     it("should pass cameraFacing through as cameraType", async () => {

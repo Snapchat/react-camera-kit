@@ -45,6 +45,7 @@ export async function createCameraKitSource(source: SourceInput): Promise<Source
       autoplay: source.autoplay,
       trackingDataUrl: source.trackingDataUrl,
       cameraFacing: source.cameraFacing,
+      fpsLimit: source.fpsLimit,
     });
   } else if (source.kind === "image") {
     return createCameraKitImageSource({
@@ -112,11 +113,13 @@ function createCameraKitVideoSource({
   autoplay,
   trackingDataUrl,
   cameraFacing,
+  fpsLimit,
 }: {
   videoUrl: string;
   autoplay?: boolean;
   trackingDataUrl?: string;
   cameraFacing?: CameraFacing;
+  fpsLimit?: number;
 }) {
   return new Promise<SourceApplication>((res, rej) => {
     autoplay = autoplay ?? true;
@@ -138,12 +141,8 @@ function createCameraKitVideoSource({
           // before any playback has started, so there is no orphaned playing video to clean up.
           const trackingData = trackingDataUrl ? await fetchTrackingData(trackingDataUrl) : undefined;
           if (autoplay) await videoInput.play();
-          const videoSourceOptions =
-            trackingData || cameraFacing
-              ? { ...(trackingData ? { trackingData } : {}), ...(cameraFacing ? { cameraType: cameraFacing } : {}) }
-              : undefined;
           res({
-            cameraKitSource: createVideoSource(videoInput, videoSourceOptions),
+            cameraKitSource: createVideoSource(videoInput, { trackingData, cameraType: cameraFacing, fpsLimit }),
             transform: Transform2D.Identity,
             inputSize: [videoInput.videoWidth, videoInput.videoHeight],
             initializedSourceInput: {

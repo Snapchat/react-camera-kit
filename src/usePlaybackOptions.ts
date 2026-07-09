@@ -78,9 +78,10 @@ export function usePlaybackOptions(options: PlaybackOptions) {
   }, [currentSession, sdkStatus, options.muted, setMuted, log]);
 
   useEffect(() => {
-    if (sdkStatus !== "ready" || !currentSession || !options.screenRegions) return;
-
-    setScreenRegions(options.screenRegions).catch((error) => {
+    if (sdkStatus !== "ready" || !currentSession) return;
+    
+    // Coalesce to {} so clearing the prop clears the regions — setScreenRegions replaces the full set.
+    setScreenRegions(options.screenRegions ?? {}).catch((error) => {
       log.error("screen_regions_apply_failed", { screenRegions: options.screenRegions }, error);
     });
   }, [currentSession, sdkStatus, options.screenRegions, setScreenRegions, log]);

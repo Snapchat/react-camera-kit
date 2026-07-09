@@ -202,11 +202,13 @@ describe("usePlaybackOptions", () => {
       });
     });
 
-    it("should not set screen regions when undefined", () => {
+    it("should clear screen regions when undefined", async () => {
       const options: PlaybackOptions = {};
       renderHook(() => usePlaybackOptions(options));
 
-      expect(mockSetScreenRegions).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(mockSetScreenRegions).toHaveBeenCalledWith({});
+      });
     });
 
     it("should update screen regions when changed", async () => {

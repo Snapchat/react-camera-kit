@@ -211,6 +211,28 @@ describe("usePlaybackOptions", () => {
       });
     });
 
+    it("should clear screen regions when they change from set to undefined", async () => {
+      const regions: any = {
+        safeRenderArea: { top: 0, left: 0, bottom: 1, right: 1 },
+      };
+
+      const { rerender } = renderHook(({ screenRegions }) => usePlaybackOptions({ screenRegions }), {
+        initialProps: { screenRegions: regions },
+      });
+
+      await waitFor(() => {
+        expect(mockSetScreenRegions).toHaveBeenCalledWith(regions);
+      });
+
+      mockSetScreenRegions.mockClear();
+
+      rerender({ screenRegions: undefined });
+
+      await waitFor(() => {
+        expect(mockSetScreenRegions).toHaveBeenCalledWith({});
+      });
+    });
+
     it("should update screen regions when changed", async () => {
       const regions1: any = {
         safeRenderArea: { top: 0, left: 0, bottom: 1, right: 1 },

@@ -21,11 +21,14 @@ export interface PlaybackOptions {
   muted?: boolean;
 
   /**
-   * Configuration object containing the current set of screen regions.
+   * Configuration object containing the complete set of active screen regions.
    *
    * Screen regions define areas of the screen that have special meaning for Lens rendering,
    * such as safe rendering areas, UI button locations, keyboard areas, etc. This allows lenses
    * to adapt their content placement based on the host application's UI layout.
+   *
+   * This value is applied as a full replacement set: regions not included in the object are
+   * removed. Pass `undefined` or omit this option to clear all screen regions.
    */
   screenRegions?: ScreenRegions;
 

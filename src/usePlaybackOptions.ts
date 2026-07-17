@@ -21,11 +21,14 @@ export interface PlaybackOptions {
   muted?: boolean;
 
   /**
-   * Configuration object containing the current set of screen regions.
+   * Configuration object containing the complete set of active screen regions.
    *
    * Screen regions define areas of the screen that have special meaning for Lens rendering,
    * such as safe rendering areas, UI button locations, keyboard areas, etc. This allows lenses
    * to adapt their content placement based on the host application's UI layout.
+   *
+   * This value is applied as a full replacement set: regions not included in the object are
+   * removed. Pass `undefined` or omit this option to clear all screen regions.
    */
   screenRegions?: ScreenRegions;
 
@@ -78,9 +81,9 @@ export function usePlaybackOptions(options: PlaybackOptions) {
   }, [currentSession, sdkStatus, options.muted, setMuted, log]);
 
   useEffect(() => {
-    if (sdkStatus !== "ready" || !currentSession || !options.screenRegions) return;
-
-    setScreenRegions(options.screenRegions).catch((error) => {
+    if (sdkStatus !== "ready" || !currentSession) return;
+    // Coalesce to {} so clearing the prop clears the regions — setScreenRegions replaces the full set.
+    setScreenRegions(options.screenRegions ?? {}).catch((error) => {
       log.error("screen_regions_apply_failed", { screenRegions: options.screenRegions }, error);
     });
   }, [currentSession, sdkStatus, options.screenRegions, setScreenRegions, log]);

@@ -10,37 +10,6 @@ jest.mock("@snap/camera-kit", () => ({
   bootstrapCameraKit: jest.fn(),
 }));
 
-const mockRefreshLens = jest.fn();
-
-// Mock CameraKitProvider
-jest.mock("./CameraKitProvider", () => ({
-  useCameraKit: jest.fn(() => ({
-    cameraKitStatus: "ready" as const,
-    cameraKitError: undefined,
-    liveCanvas: document.createElement("canvas"),
-    captureCanvas: document.createElement("canvas"),
-    source: { status: "none" as const, error: undefined, input: undefined, initializedInput: undefined },
-    lens: {
-      status: "none" as const,
-      error: undefined,
-      lensId: undefined,
-      lensGroupId: undefined,
-      lensLaunchData: undefined,
-      lensReadyGuard: undefined,
-      lens: undefined,
-    },
-    reinitialize: jest.fn(),
-    // Lens manager methods
-    fetchLens: jest.fn(),
-    fetchLenses: jest.fn(),
-    applyLens: jest.fn(),
-    loadAndApplyLens: jest.fn(),
-    removeLens: jest.fn(),
-    refreshLens: mockRefreshLens,
-    lenses: [],
-  })),
-}));
-
 // Mock all the custom hooks
 jest.mock("./useApplySource");
 jest.mock("./useApplyLens");
@@ -100,78 +69,18 @@ describe("LensPlayer", () => {
         />,
       );
 
-      expect(mockUseApplyLens).toHaveBeenCalledWith(lensId, lensGroupId, lensLaunchData, lensReadyGuard);
+      expect(mockUseApplyLens).toHaveBeenCalledWith(lensId, lensGroupId, lensLaunchData, lensReadyGuard, undefined);
     });
 
     it("should call useApplyLens with undefined values when not provided", () => {
       render(<LensPlayer />);
-      expect(mockUseApplyLens).toHaveBeenCalledWith(undefined, undefined, undefined, undefined);
-    });
-  });
-
-  describe("Refresh Trigger", () => {
-    it("should NOT call refreshLens on initial mount even with a defined refreshTrigger value", () => {
-      render(<LensPlayer refreshTrigger={1} />);
-      expect(mockRefreshLens).not.toHaveBeenCalled();
+      expect(mockUseApplyLens).toHaveBeenCalledWith(undefined, undefined, undefined, undefined, undefined);
     });
 
-    it("should NOT call refreshLens when component re-renders but refreshTrigger stays the same", () => {
-      const { rerender } = render(<LensPlayer refreshTrigger={1} lensId="lens-1" />);
-      expect(mockRefreshLens).not.toHaveBeenCalled();
+    it("should pass refreshTrigger to useApplyLens", () => {
+      render(<LensPlayer lensId="lens-1" lensGroupId="group-1" refreshTrigger={2} />);
 
-      // Re-render with different props but same refreshTrigger
-      rerender(<LensPlayer refreshTrigger={1} lensId="lens-2" />);
-      expect(mockRefreshLens).not.toHaveBeenCalled();
-
-      // Re-render again with same refreshTrigger
-      rerender(<LensPlayer refreshTrigger={1} lensId="lens-3" />);
-      expect(mockRefreshLens).not.toHaveBeenCalled();
-    });
-
-    it("should call refreshLens when refreshTrigger changes", () => {
-      const { rerender } = render(<LensPlayer refreshTrigger={1} />);
-      expect(mockRefreshLens).not.toHaveBeenCalled();
-
-      rerender(<LensPlayer refreshTrigger={2} />);
-      expect(mockRefreshLens).toHaveBeenCalledTimes(1);
-
-      rerender(<LensPlayer refreshTrigger={3} />);
-      expect(mockRefreshLens).toHaveBeenCalledTimes(2);
-    });
-
-    it("should not call refreshLens when refreshTrigger is undefined and stays undefined", () => {
-      const { rerender } = render(<LensPlayer />);
-      expect(mockRefreshLens).not.toHaveBeenCalled();
-
-      rerender(<LensPlayer lensId="different" />);
-      expect(mockRefreshLens).not.toHaveBeenCalled();
-    });
-
-    it("should call refreshLens when refreshTrigger changes from undefined to defined", () => {
-      const { rerender } = render(<LensPlayer />);
-      expect(mockRefreshLens).not.toHaveBeenCalled();
-
-      rerender(<LensPlayer refreshTrigger={1} />);
-      expect(mockRefreshLens).toHaveBeenCalledTimes(1);
-    });
-
-    it("should call refreshLens when refreshTrigger changes from defined to undefined", () => {
-      const { rerender } = render(<LensPlayer refreshTrigger={1} />);
-      expect(mockRefreshLens).not.toHaveBeenCalled();
-
-      rerender(<LensPlayer refreshTrigger={undefined} />);
-      expect(mockRefreshLens).toHaveBeenCalledTimes(1);
-    });
-
-    it("should handle different types of refreshTrigger values", () => {
-      const { rerender } = render(<LensPlayer refreshTrigger="trigger1" />);
-      expect(mockRefreshLens).not.toHaveBeenCalled();
-
-      rerender(<LensPlayer refreshTrigger="trigger2" />);
-      expect(mockRefreshLens).toHaveBeenCalledTimes(1);
-
-      rerender(<LensPlayer refreshTrigger={{ key: "value" }} />);
-      expect(mockRefreshLens).toHaveBeenCalledTimes(2);
+      expect(mockUseApplyLens).toHaveBeenCalledWith("lens-1", "group-1", undefined, undefined, 2);
     });
   });
 
@@ -289,10 +198,10 @@ describe("LensPlayer", () => {
   describe("Props Changes", () => {
     it("should handle lensId changes", () => {
       const { rerender } = render(<LensPlayer lensId="lens-1" lensGroupId="group-1" />);
-      expect(mockUseApplyLens).toHaveBeenCalledWith("lens-1", "group-1", undefined, undefined);
+      expect(mockUseApplyLens).toHaveBeenCalledWith("lens-1", "group-1", undefined, undefined, undefined);
 
       rerender(<LensPlayer lensId="lens-2" lensGroupId="group-1" />);
-      expect(mockUseApplyLens).toHaveBeenCalledWith("lens-2", "group-1", undefined, undefined);
+      expect(mockUseApplyLens).toHaveBeenCalledWith("lens-2", "group-1", undefined, undefined, undefined);
     });
 
     it("should handle source changes", () => {
@@ -368,9 +277,8 @@ describe("LensPlayer", () => {
         props.lensGroupId,
         props.lensLaunchData,
         props.lensReadyGuard,
+        props.refreshTrigger,
       );
-      // refreshLens should NOT be called on initial mount
-      expect(mockRefreshLens).not.toHaveBeenCalled();
 
       const canvas = screen.getByTestId("capture-canvas");
       expect(canvas).toHaveClass("test-class");
@@ -387,16 +295,6 @@ describe("LensPlayer", () => {
       expect(screen.getByTestId("custom-child")).toBeInTheDocument();
       expect(screen.queryByTestId("capture-canvas")).not.toBeInTheDocument();
       expect(screen.queryByTestId("live-canvas")).not.toBeInTheDocument();
-    });
-
-    it("should handle rapid refreshTrigger changes", () => {
-      const { rerender } = render(<LensPlayer refreshTrigger={0} />);
-
-      for (let i = 1; i <= 5; i++) {
-        rerender(<LensPlayer refreshTrigger={i} />);
-      }
-
-      expect(mockRefreshLens).toHaveBeenCalledTimes(5); // Only actual changes, not initial mount
     });
   });
 

@@ -267,6 +267,52 @@ describe("useApplyLens", () => {
       // Should not reapply since stable key is the same
       expect(mockApplyLens).not.toHaveBeenCalled();
     });
+
+    it("should reapply the lens with current launch data when refreshTrigger changes", async () => {
+      const launchData = { launchParams: { hint: "face" } };
+      const { rerender } = renderHook(
+        ({ refreshTrigger }) => useApplyLens("lens-1", "group-1", launchData, undefined, refreshTrigger),
+        { initialProps: { refreshTrigger: 1 } },
+      );
+
+      await waitFor(() => {
+        expect(mockApplyLens).toHaveBeenCalledTimes(1);
+      });
+      mockApplyLens.mockClear();
+
+      rerender({ refreshTrigger: 1 });
+      expect(mockApplyLens).not.toHaveBeenCalled();
+
+      rerender({ refreshTrigger: 2 });
+      await waitFor(() => {
+        expect(mockApplyLens).toHaveBeenCalledWith("lens-1", "group-1", launchData, undefined);
+      });
+    });
+
+    it("should apply updated launch data once when it changes with refreshTrigger", async () => {
+      const { rerender } = renderHook(
+        ({ launchData, refreshTrigger }) => useApplyLens("lens-1", "group-1", launchData, undefined, refreshTrigger),
+        {
+          initialProps: {
+            launchData: { launchParams: { hint: "face" } },
+            refreshTrigger: 1,
+          },
+        },
+      );
+
+      await waitFor(() => {
+        expect(mockApplyLens).toHaveBeenCalledTimes(1);
+      });
+      mockApplyLens.mockClear();
+
+      const updatedLaunchData = { launchParams: { hint: "hand" } };
+      rerender({ launchData: updatedLaunchData, refreshTrigger: 2 });
+
+      await waitFor(() => {
+        expect(mockApplyLens).toHaveBeenCalledTimes(1);
+        expect(mockApplyLens).toHaveBeenCalledWith("lens-1", "group-1", updatedLaunchData, undefined);
+      });
+    });
   });
 
   describe("Cleanup on unmount", () => {
@@ -487,6 +533,35 @@ describe("useApplyLens", () => {
       rerender({ launchData: { launchParams: { hint: "hand" } } });
 
       expect(mockReinitialize).toHaveBeenCalledTimes(1);
+    });
+
+    it("reinitializes when refreshTrigger changes while in a LensAbortError", () => {
+      mockUseInternalCameraKit.mockReturnValue(errorContext(abortError));
+
+      const { rerender } = renderHook(
+        ({ refreshTrigger }) => useApplyLens("lens-1", "group-1", undefined, undefined, refreshTrigger),
+        { initialProps: { refreshTrigger: 1 } },
+      );
+
+      expect(mockReinitialize).not.toHaveBeenCalled();
+
+      rerender({ refreshTrigger: 2 });
+
+      expect(mockReinitialize).toHaveBeenCalledTimes(1);
+      expect(mockReportCount).toHaveBeenCalledWith("auto_reinit_on_refresh");
+    });
+
+    it("does NOT reinitialize when refreshTrigger is unchanged", () => {
+      mockUseInternalCameraKit.mockReturnValue(errorContext(abortError));
+
+      const { rerender } = renderHook(
+        ({ refreshTrigger }) => useApplyLens("lens-1", "group-1", undefined, undefined, refreshTrigger),
+        { initialProps: { refreshTrigger: 1 } },
+      );
+
+      rerender({ refreshTrigger: 1 });
+
+      expect(mockReinitialize).not.toHaveBeenCalled();
     });
 
     it("does NOT reinitialize for a bootstrap-failure error", () => {

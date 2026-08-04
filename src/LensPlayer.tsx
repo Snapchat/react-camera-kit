@@ -1,11 +1,10 @@
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode } from "react";
 import { CameraKitSessionEvents, Lens, LensLaunchData, ScreenRegions } from "@snap/camera-kit";
 import { CanvasType, OutputSize, SourceInput } from "./types";
 import { useApplySource } from "./useApplySource";
 import { useApplyLens } from "./useApplyLens";
 import { usePlaybackOptions } from "./usePlaybackOptions";
 import { CaptureCanvas, LiveCanvas } from "./Canvas";
-import { useCameraKit } from "./CameraKitProvider";
 
 /**
  * Props for the LensPlayer component.
@@ -34,8 +33,9 @@ export interface LensPlayerProps {
 
   /**
    * Trigger to refresh the current Lens. When this value changes,
-   * the Lens will be removed and reapplied. Useful for restarting
-   * the Lens experience without moving LensPlayer to another component.
+   * the Lens will be removed and reapplied with the current Lens props.
+   * Useful for restarting the Lens experience without moving LensPlayer
+   * to another component.
    */
   refreshTrigger?: unknown;
 
@@ -140,17 +140,7 @@ export const LensPlayer: React.FC<LensPlayerProps> = ({
 }) => {
   usePlaybackOptions({ fpsLimit, muted, screenRegions, onError });
   useApplySource(source, outputSize);
-  useApplyLens(lensId, lensGroupId, lensLaunchData, lensReadyGuard);
-
-  // Handle refresh trigger - only refresh when the value actually changes (not on mount)
-  const { refreshLens } = useCameraKit();
-  const prevRefreshTrigger = useRef(refreshTrigger);
-  useEffect(() => {
-    if (prevRefreshTrigger.current !== refreshTrigger) {
-      prevRefreshTrigger.current = refreshTrigger;
-      refreshLens();
-    }
-  }, [refreshTrigger, refreshLens]);
+  useApplyLens(lensId, lensGroupId, lensLaunchData, lensReadyGuard, refreshTrigger);
 
   if (children) {
     // If custom children were provided, we wrap them to allow styling at the outer div.

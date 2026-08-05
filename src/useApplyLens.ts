@@ -18,6 +18,7 @@ const LENS_ABORT_ERROR_NAME: LensAbortError["name"] = "LensAbortError";
  * @param lensLaunchData - Optional launch parameters to pass to the lens.
  * @param lensReadyGuard - Optional async guard that must resolve before the lens is considered ready.
  *                         Useful for coordinating lens application with animations or other async operations.
+ * @param refreshTrigger - Optional value that forces the current Lens to be reapplied when it changes.
  *
  * @example
  * ```tsx
@@ -33,6 +34,7 @@ export function useApplyLens(
   lensGroupId?: string,
   lensLaunchData?: LensLaunchData,
   lensReadyGuard?: () => Promise<void>,
+  refreshTrigger?: unknown,
 ) {
   const { cameraKit, sdkStatus, sdkError, currentSession, applyLens, removeLens, reinitialize, getLogger } =
     useInternalCameraKit();
@@ -53,7 +55,7 @@ export function useApplyLens(
   });
 
   //  Synchronize the current CameraKit session with the requested Lens.
-  //   * Runs when lensId, lensGroupId, or lensLaunchData meaningfully change (see stable-key check).
+  //   * Runs when lensId, lensGroupId, lensLaunchData, or refreshTrigger meaningfully change.
   //   * Applies the Lens once, with an abort-guard so late resolutions don’t touch an unmounted component.
   useEffect(() => {
     if (sdkStatus !== "ready" || !cameraKit || !currentSession) return;
@@ -89,25 +91,38 @@ export function useApplyLens(
         log.warn("remove_on_unmount_failed", { lensId, groupId: lensGroupId }, err);
       });
     };
-  }, [lensId, lensGroupId, launchKey, sdkStatus, cameraKit, currentSession, applyLens, removeLens, log]);
+  }, [
+    lensId,
+    lensGroupId,
+    launchKey,
+    refreshTrigger,
+    sdkStatus,
+    cameraKit,
+    currentSession,
+    applyLens,
+    removeLens,
+    log,
+  ]);
 
-  // Auto-recovery: when a LensAbortError has wedged the SDK, a *new* lens intent
-  // (id, group, or launch data) means "try this other lens" — so reinitialize the
-  // SDK. Once it returns to "ready", the apply effect above runs and applies the
-  // current lens. Gated to LensAbortError only: a bootstrap failure is unrelated to
-  // the requested lens, so a lens change must not trigger a rebuild there.
+  // Auto-recovery: when a LensAbortError has wedged the SDK, a new lens application
+  // intent (id, group, launch data, or refresh trigger) reinitializes the SDK. Once
+  // it returns to "ready", the apply effect above applies the current lens. Gated to
+  // LensAbortError only: a bootstrap failure is unrelated to the requested lens.
   const recoveryKey = `${lensId ?? ""}::${lensGroupId ?? ""}::${launchKey}`;
-  const prevRecoveryKeyRef = useRef(recoveryKey);
+  const previousRecoveryIntentRef = useRef({ recoveryKey, refreshTrigger });
   useEffect(() => {
-    const changed = prevRecoveryKeyRef.current !== recoveryKey;
-    prevRecoveryKeyRef.current = recoveryKey;
-    if (!changed) return;
+    const previousIntent = previousRecoveryIntentRef.current;
+    const lensChanged = previousIntent.recoveryKey !== recoveryKey;
+    const refreshRequested = !Object.is(previousIntent.refreshTrigger, refreshTrigger);
+    previousRecoveryIntentRef.current = { recoveryKey, refreshTrigger };
+    if (!lensChanged && !refreshRequested) return;
     if (!lensId || !lensGroupId) return;
 
     if (sdkStatus === "error" && sdkError?.name === LENS_ABORT_ERROR_NAME) {
-      log.info("auto_reinit_on_lens_change", { lensId, groupId: lensGroupId });
-      metricsReporter.reportCount("auto_reinit_on_lens_change");
+      const recoveryReason = lensChanged ? "lens_change" : "refresh";
+      log.info("auto_reinit_on_lens_intent", { lensId, groupId: lensGroupId, recoveryReason });
+      metricsReporter.reportCount(`auto_reinit_on_${recoveryReason}`);
       reinitialize();
     }
-  }, [recoveryKey, sdkStatus, sdkError, lensId, lensGroupId, reinitialize, log]);
+  }, [recoveryKey, refreshTrigger, sdkStatus, sdkError, lensId, lensGroupId, reinitialize, log]);
 }

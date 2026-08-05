@@ -169,12 +169,13 @@ import { useApplyLens } from "@snap/react-camera-kit";
 useApplyLens("YOUR_LENS_ID", "YOUR_LENS_GROUP_ID");
 ```
 
-| Parameter        | Type                  | Description                          |
-| ---------------- | --------------------- | ------------------------------------ |
-| `lensId`         | `string \| undefined` | Lens ID — pass `undefined` to remove |
-| `lensGroupId`    | `string \| undefined` | Lens Group ID                        |
-| `lensLaunchData` | `LensLaunchData`      | Optional launch parameters           |
-| `lensReadyGuard` | `() => Promise<void>` | Optional async ready guard           |
+| Parameter        | Type                  | Description                                  |
+| ---------------- | --------------------- | -------------------------------------------- |
+| `lensId`         | `string \| undefined` | Lens ID — pass `undefined` to remove         |
+| `lensGroupId`    | `string \| undefined` | Lens Group ID                                |
+| `lensLaunchData` | `LensLaunchData`      | Optional launch parameters                   |
+| `lensReadyGuard` | `() => Promise<void>` | Optional async ready guard                   |
+| `refreshTrigger` | `unknown`             | Reapply with current parameters when changed |
 
 ### useApplySource
 
